@@ -81,49 +81,99 @@ $breakdownString
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _uploadImage() async {
-    print("Image picker is triggered. Show Image picker now!");
-    try {
-      // Pick an image from the gallery or camera
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return;
-
-      // Convert the image to a base64 string
-      final bytes = await File(image.path).readAsBytes();
-      final base64Image = base64Encode(bytes);
-
-      // API request payload
-      final body = jsonEncode({
-        "model": "llama3.2-vision",
-        "prompt": "Describe this picture. Respond in JSON format.",
-        "format": "json",
-        "stream": false,
-        "images": [base64Image],
-      });
-
-      // Send the POST request
-      final response = await http.post(
-        Uri.parse('http://localhost:11434/api/generate'),
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _response = jsonDecode(response.body)['response'] ?? 'No response';
-        });
-        print(_response);
-      } else {
-        setState(() {
-          _response = 'Error: ${response.reasonPhrase}';
-        });
-        print(_response);
-      }
-    } catch (e) {
-      setState(() {
-        _response = 'Error: $e';
-      });
-    }
+  print("Image picker is triggered. Show Image picker now!");
+  try {
+    // Show an action sheet to choose between Camera and Gallery
+    await showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a Photo'),
+                onTap: () async {
+                  Navigator.pop(context); // Close the action sheet
+                  final XFile? image =
+                      await _picker.pickImage(source: ImageSource.camera);
+                  await _processImage(image); // Process the selected image
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () async {
+                  Navigator.pop(context); // Close the action sheet
+                  final XFile? image =
+                      await _picker.pickImage(source: ImageSource.gallery);
+                  await _processImage(image); // Process the selected image
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () {
+                  Navigator.pop(context); // Close the action sheet
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  } catch (e) {
+    setState(() {
+      _response = 'Error: $e';
+    });
+    print("Error picking image: $e");
   }
+}
+
+// Helper function to process the selected image
+Future<void> _processImage(XFile? image) async {
+  if (image == null) return;
+
+  try {
+    // Convert the image to a base64 string
+    final bytes = await File(image.path).readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    // API request payload
+    final body = jsonEncode({
+      "model": "llama3.2-vision",
+      "prompt": "Describe this picture. Respond in JSON format.",
+      "format": "json",
+      "stream": false,
+      "images": [base64Image],
+    });
+
+    // Send the POST request
+    final response = await http.post(
+      Uri.parse('http://localhost:11434/api/generate'),
+      headers: {'Content-Type': 'application/json'},
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        _response = jsonDecode(response.body)['response'] ?? 'No response';
+      });
+      print(_response);
+    } else {
+      setState(() {
+        _response = 'Error: ${response.reasonPhrase}';
+      });
+      print(_response);
+    }
+  } catch (e) {
+    setState(() {
+      _response = 'Error: $e';
+    });
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
